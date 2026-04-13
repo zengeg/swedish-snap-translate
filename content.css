@@ -1,0 +1,6 @@
+/* Host reset — all real styles live in Shadow DOM */
+[data-sv-en] {
+  all: initial;
+  position: absolute;
+  z-index: 2147483647;
+}
