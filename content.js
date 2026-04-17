@@ -1,6 +1,19 @@
 (() => {
   let bubble = null;
   let pendingTimer = null;
+  let enabled = true;
+
+  // Read initial state once
+  chrome.storage.local.get("enabled", (data) => {
+    enabled = data.enabled !== false;
+  });
+
+  // Sync instantly when toggled via icon click
+  chrome.storage.onChanged.addListener((changes) => {
+    if (changes.enabled) {
+      enabled = changes.enabled.newValue;
+    }
+  });
 
   // --- Ask background to translate ---
   function translate(text) {
@@ -10,13 +23,18 @@
           reject(new Error(chrome.runtime.lastError.message));
           return;
         }
-        if (resp && resp.ok) {
-          resolve(resp.result);
-        } else {
-          reject(new Error(resp ? resp.error : "No response"));
-        }
+        if (resp && resp.ok) resolve(resp.result);
+        else reject(new Error(resp ? resp.error : "No response"));
       });
     });
+  }
+
+  // --- Read aloud in Swedish ---
+  function speak(text) {
+    speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = "sv-SE";
+    speechSynthesis.speak(utterance);
   }
 
   // --- Bubble UI (Shadow DOM isolated) ---
@@ -58,15 +76,6 @@
         background: #1a1a2eee;
         border: 1px solid rgba(255, 255, 255, 0.1);
       }
-      .label {
-        font-size: 10px;
-        font-weight: 600;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        color: #006aa7;
-        margin-bottom: 4px;
-      }
-      .dark .label { color: #fecc02; }
       .translation { font-size: 14px; }
       .loading {
         display: inline-block;
@@ -80,7 +89,7 @@
         border-color: rgba(255,255,255,0.1);
         border-top-color: #fecc02;
       }
-      .error { color: #c0392b; font-style: italic; }
+      .error { color: #c0392b; font-style: italic; font-size: 13px; }
       @keyframes fadeIn {
         from { opacity: 0; transform: translateY(6px) scale(0.96); }
         to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -127,7 +136,7 @@
     requestAnimationFrame(() => {
       const rect = host.getBoundingClientRect();
       let left = x + scrollX - rect.width / 2;
-      let top = y + scrollY + 24;
+      let top = y + scrollY + 12;
 
       const vw = document.documentElement.clientWidth;
       if (left < scrollX + 8) left = scrollX + 8;
@@ -159,12 +168,14 @@
     return d.innerHTML;
   }
 
-  // --- Main selection listener ---
+  // --- Main: select text → translate + speak (only when enabled) ---
   document.addEventListener("mouseup", (e) => {
     if (bubble && bubble.contains(e.target)) return;
     cancelPending();
 
     pendingTimer = setTimeout(async () => {
+      if (!enabled) return;
+
       const sel = window.getSelection();
       const text = sel ? sel.toString().trim() : "";
       if (!text || text.length < 2 || text.length > 5000) return;
@@ -177,19 +188,17 @@
       const x = rect.left + rect.width / 2;
       const y = rect.bottom;
 
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = "sv-SE";
-      speechSynthesis.speak(utterance);
+      speak(text);
 
       showBubble(x, y, `<div class="loading"></div>`);
-      
+
       try {
         const result = await translate(text);
         if (!bubble) return;
         showBubble(x, y, `<div class="translation">${escapeHtml(result)}</div>`);
       } catch (err) {
         if (!bubble) return;
-        showBubble(x, y, `<div class="error">Translation failed — ${escapeHtml(err.message)}</div>`);
+        showBubble(x, y, `<div class="error">Translation failed</div>`);
       }
     }, 300);
   });
@@ -202,7 +211,4 @@
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { removeBubble(); cancelPending(); }
   });
-
-  // Log that content script loaded successfully
-  console.log("[SV→EN] Content script loaded.");
 })();

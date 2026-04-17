@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "SV → EN Translator",
-  "version": "1.1",
-  "description": "Select Swedish text on any webpage to instantly see the English translation.",
-  "permissions": [],
+  "version": "1.2.0",
+  "description": "Select Swedish text on any webpage to instantly see the English translation and hear it read aloud.",
+  "permissions": ["storage"],
   "host_permissions": [
     "https://translate.googleapis.com/*"
   ],
+  "action": {},
   "background": {
     "service_worker": "background.js"
   },

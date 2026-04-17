@@ -1,5 +1,32 @@
-// Background service worker — handles translation fetch
-// to bypass page-level CSP restrictions on content scripts.
+// --- Toggle: click extension icon to enable/disable ---
+
+chrome.runtime.onInstalled.addListener(() => {
+  chrome.storage.local.set({ enabled: true });
+  updateBadge(true);
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  chrome.storage.local.get("enabled", (data) => {
+    updateBadge(data.enabled !== false);
+  });
+});
+
+chrome.action.onClicked.addListener(() => {
+  chrome.storage.local.get("enabled", (data) => {
+    const newState = !data.enabled;
+    chrome.storage.local.set({ enabled: newState });
+    updateBadge(newState);
+  });
+});
+
+function updateBadge(enabled) {
+  chrome.action.setBadgeText({ text: enabled ? "ON" : "OFF" });
+  chrome.action.setBadgeBackgroundColor({
+    color: enabled ? "#006aa7" : "#999999",
+  });
+}
+
+// --- Translation relay (bypass page CSP) ---
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action !== "translate") return false;
@@ -24,6 +51,5 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       sendResponse({ ok: false, error: err.message });
     });
 
-  // Return true to indicate we will call sendResponse asynchronously
   return true;
 });
